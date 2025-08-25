@@ -4,15 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import ConnectStravaButton from "@/components/ConnectStravaButton";
-import SyncStravaButton from "@/components/SyncStravaButton";
 import SignOutButton from "@/components/SignOutButton";
-import SyncStravaDetailsButton from "@/components/SyncStravaDetailsButton";
-import ActivityChart from "@/components/ActivityChart";
-import WeeklyVolumeChart from "@/components/WeeklyVolumeChart";
-import FitnessFreshnessChart from "@/components/FitnessFreshnessChart";
 import TrainingStatus from "@/components/TrainingStatus";
 import WeeklyStats from "@/components/WeeklyStats";
-import { revalidatePath } from "next/cache";
 import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
 
@@ -129,8 +123,29 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Pace & HR */}
-      {/* Weekly volume */}
+      {hasStrava && recent.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold tracking-tight">
+            Recent activities
+          </h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {recent.map((a) => (
+              <li key={a.id}>
+                <a
+                  href={`/activities/${a.id}`}
+                  className="text-orange-600 hover:underline"
+                >
+                  {a.name || a.type || "Activity"}
+                  {a.start_date
+                    ? ` — ${new Date(a.start_date).toLocaleDateString()}`
+                    : ""}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {hasStrava && <TrainingCharts />}
     </div>
   );
