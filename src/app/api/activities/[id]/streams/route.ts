@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -10,9 +11,11 @@ function json(data: unknown, init?: ResponseInit) {
 }
 
 export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> } // 👈 note Promise here
 ) {
+  const { id } = await params; // 👈 await it
+
   const session = await getServerSession(authOptions);
   if (!session?.user)
     return json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -21,7 +24,7 @@ export async function GET(
   if (!userId) return json({ ok: false, error: "No user id" }, { status: 401 });
 
   const activity = await db.activity.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       userId: true,
@@ -35,7 +38,7 @@ export async function GET(
   }
 
   const streams = await db.activityStream.findUnique({
-    where: { activityId: params.id },
+    where: { activityId: id },
     select: {
       time: true,
       heartrate: true,
