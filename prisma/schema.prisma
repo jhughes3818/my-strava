@@ -20,9 +20,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  Activity Activity[]
+  accounts  Account[]
+  sessions  Session[]
+  Activity  Activity[]
+  SyncState SyncState[]
 }
 
 model Account {
@@ -66,38 +67,38 @@ model VerificationToken {
 }
 
 model Activity {
-  id            String   @id                   // Strava activity id (string)
-  userId        String
-  name          String?
-  type          String?
-  distance_m    Float?
-  moving_s      Int?
-  elapsed_s     Int?
-  start_date    DateTime?
-  timezone      String?
-  is_trainer    Boolean?
-  is_commute    Boolean?
-  total_elev_m  Float?
+  id           String    @id // Strava activity id (string)
+  userId       String
+  name         String?
+  type         String?
+  distance_m   Float?
+  moving_s     Int?
+  elapsed_s    Int?
+  start_date   DateTime?
+  timezone     String?
+  is_trainer   Boolean?
+  is_commute   Boolean?
+  total_elev_m Float?
 
   // NEW: detail fields
-  avg_hr        Float?
-  max_hr        Float?
-  avg_speed     Float?
-  avg_cadence   Float?
-  avg_watts     Float?
-  calories      Float?
-  device_name   String?
-  map_polyline  String?
+  avg_hr       Float?
+  max_hr       Float?
+  avg_speed    Float?
+  avg_cadence  Float?
+  avg_watts    Float?
+  calories     Float?
+  device_name  String?
+  map_polyline String?
 
-  raw           Json?       // summary JSON (from list endpoint)
-  raw_detail    Json?       // NEW: full detail JSON (from detail endpoint)
-  has_streams   Boolean? @default(false)
+  raw         Json? // summary JSON (from list endpoint)
+  raw_detail  Json? // NEW: full detail JSON (from detail endpoint)
+  has_streams Boolean? @default(false)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  streams       ActivityStream?
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streams ActivityStream?
 
   @@index([userId])
   @@index([type])
@@ -105,9 +106,9 @@ model Activity {
 }
 
 model ActivityStream {
-  id          String   @id @default(cuid())
-  activityId  String   @unique
-  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  activityId String   @unique
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   // store per-key arrays as JSON for simplicity
   time            Json?
@@ -119,8 +120,16 @@ model ActivityStream {
   grade_smooth    Json?
   latlng          Json?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
+model SyncState {
+  userId        String    @id
+  lastSyncStart DateTime? // last time we started any sync
+  lastSyncedAt  DateTime? // newest activity start_date we've stored
+  backfillDone  Boolean   @default(false)
+  updatedAt     DateTime  @updatedAt
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
