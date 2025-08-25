@@ -10,6 +10,7 @@ import WeeklyStats from "@/components/WeeklyStats";
 import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
 import Last7Days from "@/components/Last7Days";
+import { syncSinceLast } from "@/lib/strava-sync";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -34,20 +35,15 @@ export default async function DashboardPage() {
     },
   });
 
-  async function autoSyncIfNeeded(userId: string) {
-    // Fire-and-forget incremental sync; don’t block page
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/strava/incremental`, {
-      method: "POST",
-      // In dev, base URL may be empty -> relative works from client, not server.
-      // For server in dev: fall back to relative via Next's internal fetch by omitting base.
-      // Here we play safe with try/catch:
-    }).catch(() => {});
+  function autoSyncIfNeeded(userId: string) {
+    // Fire-and-forget incremental sync; don't block page
+    syncSinceLast(userId).catch(() => {});
   }
 
   const hasStrava = user?.accounts?.some((a) => a.provider === "strava");
 
   if (hasStrava) {
-    await autoSyncIfNeeded(user!.id);
+    autoSyncIfNeeded(user!.id);
   }
 
   const syncState = await db.syncState.findUnique({
