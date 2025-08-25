@@ -8,7 +8,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   CartesianGrid,
 } from "recharts";
 
@@ -26,11 +25,6 @@ export default function ActivityChart({
 }) {
   const [selected, setSelected] = useState<string>(activities[0]?.id ?? "");
   const [data, setData] = useState<any[]>([]);
-  const [meta, setMeta] = useState<{
-    name?: string | null;
-    type?: string | null;
-    start?: string | null;
-  }>({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -72,11 +66,6 @@ export default function ActivityChart({
 
         if (!cancelled) {
           setData(rows);
-          setMeta({
-            name: j.activity?.name,
-            type: j.activity?.type,
-            start: j.activity?.start_date,
-          });
         }
       } catch (e: any) {
         if (!cancelled) setErr(e.message || "error");
@@ -120,49 +109,61 @@ export default function ActivityChart({
 
       <div className="text-sm text-gray-700">{title}</div>
 
-      <div className="h-72 w-full">
-        <ResponsiveContainer>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="tLabel" minTickGap={24} />
-            {/* Left axis: Heart rate (bpm) */}
-            <YAxis yAxisId="left" domain={["auto", "auto"]} />
-            {/* Right axis: Pace (sec/km). We'll invert visually by mapping ticks in the tooltip/legend */}
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              domain={["auto", "auto"]}
-            />
-            <Tooltip
-              formatter={(value: any, name) => {
-                if (name === "pace (min/km)") {
-                  const secs = Number(value);
-                  if (!isFinite(secs) || secs <= 0) return ["–", name];
-                  const m = Math.floor(secs / 60);
-                  const s = Math.round(secs % 60);
-                  return [`${m}:${String(s).padStart(2, "0")}`, name];
-                }
-                return [value, name];
-              }}
-              labelFormatter={(l) => `t = ${l}`}
-            />
-            <Legend />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="hr"
-              name="HR (bpm)"
-              dot={false}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="pace"
-              name="pace (min/km)"
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="space-y-8">
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-black">Heart Rate</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tLabel" minTickGap={24} />
+                <YAxis domain={["auto", "auto"]} />
+                <Tooltip labelFormatter={(l) => `t = ${l}`} />
+                <Line
+                  type="monotone"
+                  dataKey="hr"
+                  name="HR (bpm)"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-black">Pace</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tLabel" minTickGap={24} />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tickFormatter={(secs) => {
+                    const m = Math.floor(Number(secs) / 60);
+                    const s = Math.round(Number(secs) % 60);
+                    return `${m}:${String(s).padStart(2, "0")}`;
+                  }}
+                />
+                <Tooltip
+                  formatter={(value: any) => {
+                    const secs = Number(value);
+                    if (!isFinite(secs) || secs <= 0) return "–";
+                    const m = Math.floor(secs / 60);
+                    const s = Math.round(secs % 60);
+                    return `${m}:${String(s).padStart(2, "0")}`;
+                  }}
+                  labelFormatter={(l) => `t = ${l}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="pace"
+                  name="pace (min/km)"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );

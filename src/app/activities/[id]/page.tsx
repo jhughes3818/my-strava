@@ -59,7 +59,7 @@ export default async function ActivityDetailPage({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-semibold tracking-tight text-black">
         {activity.name || activity.type || "Activity"}
       </h1>
       {activity.start_date && (

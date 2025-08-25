@@ -64,7 +64,7 @@ export default async function DashboardPage() {
     // inside your page component’s return:
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-black">Dashboard</h1>
         <SignOutButton />
       </div>
 
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
 
       {hasStrava && recent.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight text-black">
             Recent activities
           </h2>
           <ul className="mt-2 space-y-1 text-sm">
