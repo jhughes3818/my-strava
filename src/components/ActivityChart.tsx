@@ -43,11 +43,19 @@ export default function ActivityChart({
         const hr: number[] = j.streams.heartrate ?? [];
         const v: number[] = j.streams.velocity_smooth ?? [];
 
-        // Build rows: t (mm:ss), hr (bpm), pace (min/km). Guard against 0 speeds.
+        // Smooth velocity and filter out stops so the pace chart is readable
+        const window = 5; // seconds for simple moving average
+        let sum = 0;
         const rows: any[] = [];
         for (let i = 0; i < time.length; i++) {
           const t = time[i] ?? (i ? time[i - 1] + 1 : 0);
-          const secsPerKm = v[i] > 0 ? 1000 / v[i] : null; // seconds to cover 1km
+          const val = v[i] ?? 0;
+          sum += val;
+          if (i >= window) sum -= v[i - window] ?? 0;
+          const avgV = sum / Math.min(i + 1, window);
+          let secsPerKm = avgV > 0 ? 1000 / avgV : null; // seconds to cover 1km
+          // Drop unrealistically slow paces from stops (>10 min/km)
+          if (secsPerKm && secsPerKm > 600) secsPerKm = null;
           const paceMin = secsPerKm ? Math.floor(secsPerKm / 60) : null;
           const paceSec = secsPerKm ? Math.round(secsPerKm % 60) : null;
           rows.push({
