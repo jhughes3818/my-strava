@@ -10,36 +10,37 @@ generator client {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String?   @unique
-  name      String?
-  image     String?
+  id    String  @id @default(cuid())
+  email String? @unique
+  name  String?
+  image String?
 
   emailVerified DateTime?
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  accounts  Account[]
-  sessions  Session[]
+  accounts Account[]
+  sessions Session[]
+  Activity Activity[]
 }
 
 model Account {
-  id                String   @id @default(cuid())
+  id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?  @db.Text
-  access_token      String?  @db.Text
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?  @db.Text
+  id_token          String? @db.Text
   session_state     String?
 
-  athlete_id        String?  // keep as String to avoid BigInt TS friction
-  athlete           Json?     // <-- NEW: stores Strava's athlete object (optional)
+  athlete_id String? // keep as String to avoid BigInt TS friction
+  athlete    Json? // <-- NEW: stores Strava's athlete object (optional)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -63,3 +64,63 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model Activity {
+  id            String   @id                   // Strava activity id (string)
+  userId        String
+  name          String?
+  type          String?
+  distance_m    Float?
+  moving_s      Int?
+  elapsed_s     Int?
+  start_date    DateTime?
+  timezone      String?
+  is_trainer    Boolean?
+  is_commute    Boolean?
+  total_elev_m  Float?
+
+  // NEW: detail fields
+  avg_hr        Float?
+  max_hr        Float?
+  avg_speed     Float?
+  avg_cadence   Float?
+  avg_watts     Float?
+  calories      Float?
+  device_name   String?
+  map_polyline  String?
+
+  raw           Json?       // summary JSON (from list endpoint)
+  raw_detail    Json?       // NEW: full detail JSON (from detail endpoint)
+  has_streams   Boolean? @default(false)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streams       ActivityStream?
+
+  @@index([userId])
+  @@index([type])
+  @@index([start_date])
+}
+
+model ActivityStream {
+  id          String   @id @default(cuid())
+  activityId  String   @unique
+  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  // store per-key arrays as JSON for simplicity
+  time            Json?
+  heartrate       Json?
+  velocity_smooth Json?
+  altitude        Json?
+  cadence         Json?
+  watts           Json?
+  grade_smooth    Json?
+  latlng          Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+

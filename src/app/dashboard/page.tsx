@@ -4,7 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import ConnectStravaButton from "@/components/ConnectStravaButton";
+import SyncStravaButton from "@/components/SyncStravaButton";
 import SignOutButton from "@/components/SignOutButton";
+import SyncStravaDetailsButton from "@/components/SyncStravaDetailsButton";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -46,8 +48,10 @@ export default async function DashboardPage() {
         </p>
 
         {hasStrava ? (
-          <div className="text-green-700">
-            ✅ Strava connected. You’re good to go.
+          <div className="space-y-2">
+            <div className="text-green-700">✅ Strava connected.</div>
+            <SyncStravaButton />
+            <SyncStravaDetailsButton />
           </div>
         ) : (
           <div className="space-y-2">
