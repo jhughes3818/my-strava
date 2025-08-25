@@ -15,6 +15,7 @@ import WeeklyStats from "@/components/WeeklyStats";
 import { revalidatePath } from "next/cache";
 import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
+import Last7Days from "@/components/Last7Days";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -120,6 +121,12 @@ export default async function DashboardPage() {
       {hasStrava && (
         <section className="mt-8">
           <TrainingStatus />
+        </section>
+      )}
+
+      {hasStrava && (
+        <section className="mt-8">
+          <Last7Days />
         </section>
       )}
 
