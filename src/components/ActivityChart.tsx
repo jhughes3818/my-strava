@@ -44,7 +44,7 @@ export default function ActivityChart({
         const v: number[] = j.streams.velocity_smooth ?? [];
 
         // Smooth velocity and filter out stops so the pace chart is readable
-        const window = 5; // seconds for simple moving average
+        const window = 30; // seconds for simple moving average
         let sum = 0;
         const rows: any[] = [];
         for (let i = 0; i < time.length; i++) {
