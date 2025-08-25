@@ -8,7 +8,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   CartesianGrid,
 } from "recharts";
 
@@ -26,11 +25,6 @@ export default function ActivityChart({
 }) {
   const [selected, setSelected] = useState<string>(activities[0]?.id ?? "");
   const [data, setData] = useState<any[]>([]);
-  const [meta, setMeta] = useState<{
-    name?: string | null;
-    type?: string | null;
-    start?: string | null;
-  }>({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -49,11 +43,19 @@ export default function ActivityChart({
         const hr: number[] = j.streams.heartrate ?? [];
         const v: number[] = j.streams.velocity_smooth ?? [];
 
-        // Build rows: t (mm:ss), hr (bpm), pace (min/km). Guard against 0 speeds.
+        // Smooth velocity and filter out stops so the pace chart is readable
+        const window = 30; // seconds for simple moving average
+        let sum = 0;
         const rows: any[] = [];
         for (let i = 0; i < time.length; i++) {
           const t = time[i] ?? (i ? time[i - 1] + 1 : 0);
-          const secsPerKm = v[i] > 0 ? 1000 / v[i] : null; // seconds to cover 1km
+          const val = v[i] ?? 0;
+          sum += val;
+          if (i >= window) sum -= v[i - window] ?? 0;
+          const avgV = sum / Math.min(i + 1, window);
+          let secsPerKm = avgV > 0 ? 1000 / avgV : null; // seconds to cover 1km
+          // Drop unrealistically slow paces from stops (>10 min/km)
+          if (secsPerKm && secsPerKm > 600) secsPerKm = null;
           const paceMin = secsPerKm ? Math.floor(secsPerKm / 60) : null;
           const paceSec = secsPerKm ? Math.round(secsPerKm % 60) : null;
           rows.push({
@@ -72,11 +74,6 @@ export default function ActivityChart({
 
         if (!cancelled) {
           setData(rows);
-          setMeta({
-            name: j.activity?.name,
-            type: j.activity?.type,
-            start: j.activity?.start_date,
-          });
         }
       } catch (e: any) {
         if (!cancelled) setErr(e.message || "error");
@@ -97,11 +94,11 @@ export default function ActivityChart({
   }, [activities, selected]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 text-black">
       <div className="flex items-center gap-2">
-        <label className="text-sm text-gray-600">Activity:</label>
+        <label className="text-sm text-black">Activity:</label>
         <select
-          className="rounded-md border px-2 py-1"
+          className="rounded-md border px-2 py-1 text-black"
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
         >
@@ -113,56 +110,68 @@ export default function ActivityChart({
           ))}
         </select>
         {loading && (
-          <span className="text-sm text-gray-500">Loading streams…</span>
+          <span className="text-sm text-black">Loading streams…</span>
         )}
         {err && <span className="text-sm text-red-600">{err}</span>}
       </div>
 
-      <div className="text-sm text-gray-700">{title}</div>
+      <div className="text-sm text-black">{title}</div>
 
-      <div className="h-72 w-full">
-        <ResponsiveContainer>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="tLabel" minTickGap={24} />
-            {/* Left axis: Heart rate (bpm) */}
-            <YAxis yAxisId="left" domain={["auto", "auto"]} />
-            {/* Right axis: Pace (sec/km). We'll invert visually by mapping ticks in the tooltip/legend */}
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              domain={["auto", "auto"]}
-            />
-            <Tooltip
-              formatter={(value: any, name) => {
-                if (name === "pace (min/km)") {
-                  const secs = Number(value);
-                  if (!isFinite(secs) || secs <= 0) return ["–", name];
-                  const m = Math.floor(secs / 60);
-                  const s = Math.round(secs % 60);
-                  return [`${m}:${String(s).padStart(2, "0")}`, name];
-                }
-                return [value, name];
-              }}
-              labelFormatter={(l) => `t = ${l}`}
-            />
-            <Legend />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="hr"
-              name="HR (bpm)"
-              dot={false}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="pace"
-              name="pace (min/km)"
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="space-y-8">
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-black">Heart Rate</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tLabel" minTickGap={24} />
+                <YAxis domain={["auto", "auto"]} />
+                <Tooltip labelFormatter={(l) => `t = ${l}`} />
+                <Line
+                  type="monotone"
+                  dataKey="hr"
+                  name="HR (bpm)"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-black">Pace</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tLabel" minTickGap={24} />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tickFormatter={(secs) => {
+                    const m = Math.floor(Number(secs) / 60);
+                    const s = Math.round(Number(secs) % 60);
+                    return `${m}:${String(s).padStart(2, "0")}`;
+                  }}
+                />
+                <Tooltip
+                  formatter={(value: any) => {
+                    const secs = Number(value);
+                    if (!isFinite(secs) || secs <= 0) return "–";
+                    const m = Math.floor(secs / 60);
+                    const s = Math.round(secs % 60);
+                    return `${m}:${String(s).padStart(2, "0")}`;
+                  }}
+                  labelFormatter={(l) => `t = ${l}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="pace"
+                  name="pace (min/km)"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );
