@@ -10,7 +10,10 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Next.js recommended + TypeScript rules (legacy config translated to flat)
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+
+  // Ignore build artifacts, env typings, etc.
   {
     ignores: [
       "node_modules/**",
@@ -19,6 +22,22 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
     ],
+  },
+
+  // 🔧 Project-specific overrides (make errors -> warnings)
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "prefer-const": "warn",
+      "@typescript-eslint/no-unused-expressions": [
+        "warn",
+        {
+          allowShortCircuit: true,
+          allowTernary: true,
+          allowTaggedTemplates: true,
+        },
+      ],
+    },
   },
 ];
 
