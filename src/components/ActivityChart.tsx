@@ -94,11 +94,11 @@ export default function ActivityChart({
   }, [activities, selected]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 text-black">
       <div className="flex items-center gap-2">
-        <label className="text-sm text-gray-600">Activity:</label>
+        <label className="text-sm text-black">Activity:</label>
         <select
-          className="rounded-md border px-2 py-1"
+          className="rounded-md border px-2 py-1 text-black"
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
         >
@@ -110,12 +110,12 @@ export default function ActivityChart({
           ))}
         </select>
         {loading && (
-          <span className="text-sm text-gray-500">Loading streams…</span>
+          <span className="text-sm text-black">Loading streams…</span>
         )}
         {err && <span className="text-sm text-red-600">{err}</span>}
       </div>
 
-      <div className="text-sm text-gray-700">{title}</div>
+      <div className="text-sm text-black">{title}</div>
 
       <div className="space-y-8">
         <div>

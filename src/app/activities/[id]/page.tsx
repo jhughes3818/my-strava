@@ -63,26 +63,26 @@ export default async function ActivityDetailPage({
         {activity.name || activity.type || "Activity"}
       </h1>
       {activity.start_date && (
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-black">
           {new Date(activity.start_date).toLocaleString()}
         </p>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+      <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-black">
         <div>
-          <span className="text-gray-500">Distance</span>
+          <span>Distance</span>
           <div className="font-medium">{distance}</div>
         </div>
         <div>
-          <span className="text-gray-500">Moving Time</span>
+          <span>Moving Time</span>
           <div className="font-medium">{moving}</div>
         </div>
         <div>
-          <span className="text-gray-500">Avg HR</span>
+          <span>Avg HR</span>
           <div className="font-medium">{avgHr}</div>
         </div>
         <div>
-          <span className="text-gray-500">Avg Pace</span>
+          <span>Avg Pace</span>
           <div className="font-medium">{avgPace}</div>
         </div>
       </div>
