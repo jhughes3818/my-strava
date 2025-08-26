@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+
 /**
  * Strava webhook verification (one-time, when you create the subscription):
  * Strava calls GET ?hub.mode=subscribe&hub.challenge=...&hub.verify_token=...
