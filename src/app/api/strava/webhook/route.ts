@@ -30,25 +30,39 @@ export async function GET(req: NextRequest) {
  * Event delivery: Strava POSTs JSON and includes X-Strava-Signature = HMAC-SHA256(body, CLIENT_SECRET)
  * We validate the signature, then react to aspect_type (create/update/delete).
  */
-export async function POST(req: NextRequest) {
-  const raw = Buffer.from(await req.arrayBuffer());
-  const sig = req.headers.get("x-strava-signature") ?? ""; // HMAC hex
-  const ok = verifyStravaSignature(
-    raw,
-    sig,
-    process.env.STRAVA_CLIENT_SECRET!
-  );
-  if (!ok) return new Response("Bad signature", { status: 401 });
 
-  const evt = JSON.parse(raw.toString("utf8")) as {
+// --- POST (event delivery) ---
+export async function POST(req: NextRequest) {
+  // 1) Read the raw body EXACTLY as Strava sent it
+  const rawText = await req.text();
+
+  // 2) Grab signature header (Strava sends: X-Strava-Signature: sha256=<hex>)
+  const header = req.headers.get("x-strava-signature") ?? "";
+
+  // 3) Verify using your APP CLIENT SECRET
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  if (!clientSecret) {
+    console.error("Missing STRAVA_CLIENT_SECRET env var");
+    // Return 200 so Strava doesn't retry forever, but surface the error server-side
+    return new Response("missing secret", { status: 200 });
+  }
+
+  const ok = verifyStravaSignature(rawText, header, clientSecret);
+  if (!ok) {
+    // 401 will make Strava retry; if you’d rather avoid retries, return 200 and log instead.
+    return new Response("Bad signature", { status: 401 });
+  }
+
+  // Safe to parse now
+  const evt = JSON.parse(rawText) as {
     object_type: "activity" | "athlete";
     object_id: number;
     aspect_type: "create" | "update" | "delete";
-    owner_id: number; // athlete id
+    owner_id: number;
     updates?: Record<string, unknown>;
   };
 
-  // We only care about activities
+  // Ignore non-activity events
   if (evt.object_type !== "activity")
     return new Response("ignored", { status: 200 });
 
@@ -61,14 +75,10 @@ export async function POST(req: NextRequest) {
           where: { provider: "strava", athlete_id: String(evt.owner_id) },
           select: { userId: true },
         });
-        if (acct) {
-          await fetchAndStoreActivity(acct.userId, activityId);
-        }
+        if (acct) await fetchAndStoreActivity(acct.userId, activityId);
         break;
       }
-
       case "update": {
-        // If the activity was made private or otherwise unauthorized, remove it.
         const becamePrivate =
           evt.updates && (evt.updates as any).private === "true";
         if (becamePrivate) {
@@ -80,33 +90,53 @@ export async function POST(req: NextRequest) {
             where: { provider: "strava", athlete_id: String(evt.owner_id) },
             select: { userId: true },
           });
-          if (acct) {
-            await fetchAndStoreActivity(acct.userId, activityId);
-          }
+          if (acct) await fetchAndStoreActivity(acct.userId, activityId);
         }
         break;
       }
-
       case "delete": {
-        // 🔥 Hard-delete locally (streams row will cascade delete)
         await db.activity.delete({ where: { id: activityId } }).catch(() => {});
         break;
       }
     }
   } catch (e) {
     console.error("Strava webhook error", e);
-    // Always 200 so Strava doesn’t retry forever; you can add your own retry queue if desired.
+    // Return 200 to prevent endless retries from Strava
   }
 
   return new Response("ok", { status: 200 });
 }
 
+// --- utils ---
+function verifyStravaSignature(
+  rawBodyText: string,
+  headerValue: string,
+  clientSecret: string
+) {
+  // Strava header is usually "sha256=<hex>", but we’ll accept raw hex too
+  const provided = headerValue.startsWith("sha256=")
+    ? headerValue.slice("sha256=".length)
+    : headerValue;
+
+  // Compute expected HMAC over the EXACT raw body (utf8)
+  const expectedHex = crypto
+    .createHmac("sha256", clientSecret)
+    .update(rawBodyText, "utf8")
+    .digest("hex");
+
+  // Constant-time compare
+  try {
+    const a = Buffer.from(expectedHex, "hex");
+    const b = Buffer.from(provided, "hex");
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 async function fetchAndStoreActivity(userId: string, activityId: string) {
-  const {
-    ensureStravaAccessToken,
-    getActivityDetail,
-    getActivityStreams,
-  } = await import("@/lib/strava");
+  const { ensureStravaAccessToken, getActivityDetail, getActivityStreams } =
+    await import("@/lib/strava");
   const { upsertActivity } = await import("@/lib/strava-sync");
 
   const token = await ensureStravaAccessToken(userId);
@@ -161,30 +191,5 @@ async function fetchAndStoreActivity(userId: string, activityId: string) {
     });
   } catch (e) {
     console.error("stream error", activityId, e);
-  }
-}
-
-// --- utils ---
-function verifyStravaSignature(
-  body: Buffer,
-  signature: string,
-  clientSecret: string
-) {
-  const expected = crypto
-    .createHmac("sha256", clientSecret)
-    .update(body)
-    .digest("hex");
-
-  const sig = signature.startsWith("sha256=")
-    ? signature.slice("sha256=".length)
-    : signature;
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expected, "hex"),
-      Buffer.from(sig, "hex")
-    );
-  } catch {
-    return false;
   }
 }
