@@ -10,7 +10,7 @@ import WeeklyStats from "@/components/WeeklyStats";
 import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
 import Last7Days from "@/components/Last7Days";
-import { syncSinceLast } from "@/lib/strava-sync";
+import AutoSyncPill from "@/components/AutoSyncPill";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -35,16 +35,7 @@ export default async function DashboardPage() {
     },
   });
 
-  function autoSyncIfNeeded(userId: string) {
-    // Fire-and-forget incremental sync; don't block page
-    syncSinceLast(userId).catch(() => {});
-  }
-
   const hasStrava = user?.accounts?.some((a) => a.provider === "strava");
-
-  if (hasStrava) {
-    autoSyncIfNeeded(user!.id);
-  }
 
   const syncState = await db.syncState.findUnique({
     where: { userId: user!.id },
@@ -92,10 +83,7 @@ export default async function DashboardPage() {
                   <BackfillButton />
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Activities Up To Date
-                </div>
+                <AutoSyncPill />
               )}
             </div>
           </div>
