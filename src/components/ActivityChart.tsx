@@ -42,6 +42,7 @@ export default function ActivityChart({
         const time: number[] = j.streams.time ?? [];
         const hr: number[] = j.streams.heartrate ?? [];
         const v: number[] = j.streams.velocity_smooth ?? [];
+        const alt: number[] = j.streams.altitude ?? [];
 
         // Smooth velocity and filter out stops so the pace chart is readable
         const window = 30; // seconds for simple moving average
@@ -69,6 +70,7 @@ export default function ActivityChart({
               paceMin !== null && paceSec !== null
                 ? `${paceMin}:${String(paceSec).padStart(2, "0")}`
                 : null,
+            alt: alt[i] ?? null,
           });
         }
 
@@ -166,6 +168,25 @@ export default function ActivityChart({
                   type="monotone"
                   dataKey="pace"
                   name="pace (min/km)"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <h2 className="mb-2 text-lg font-semibold text-black">Elevation</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tLabel" minTickGap={24} />
+                <YAxis domain={["auto", "auto"]} />
+                <Tooltip labelFormatter={(l) => `t = ${l}`} />
+                <Line
+                  type="monotone"
+                  dataKey="alt"
+                  name="Elevation (m)"
                   dot={false}
                 />
               </LineChart>
