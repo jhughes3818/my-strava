@@ -11,6 +11,13 @@ import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
 import Last7Days from "@/components/Last7Days";
 
+function formatDuration(totalSeconds: number) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/api/auth/signin");
@@ -58,7 +65,14 @@ export default async function DashboardPage() {
     where: { userId: user!.id, has_streams: true },
     orderBy: { start_date: "desc" },
     take: 10,
-    select: { id: true, name: true, type: true, start_date: true },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      start_date: true,
+      distance_m: true,
+      moving_s: true,
+    },
   });
 
   return (
@@ -135,21 +149,48 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold tracking-tight text-black">
             Recent activities
           </h2>
-          <ul className="mt-2 space-y-1 text-sm">
-            {recent.map((a) => (
-              <li key={a.id}>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {recent.map((a) => {
+              const date = a.start_date
+                ? new Date(a.start_date).toLocaleDateString()
+                : "–";
+              const type = a.type ?? "–";
+              const distance =
+                a.distance_m != null
+                  ? `${(a.distance_m / 1000).toFixed(2)} km`
+                  : "–";
+              const time =
+                a.moving_s != null ? formatDuration(a.moving_s) : "–";
+              const load =
+                a.moving_s != null
+                  ? `${(a.moving_s / 3600).toFixed(1)} h`
+                  : "–";
+
+              return (
                 <a
+                  key={a.id}
                   href={`/activities/${a.id}`}
-                  className="text-orange-600 hover:underline"
+                  className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
                 >
-                  {a.name || a.type || "Activity"}
-                  {a.start_date
-                    ? ` — ${new Date(a.start_date).toLocaleDateString()}`
-                    : ""}
+                  <div className="truncate text-sm font-medium text-slate-900">
+                    {a.name || a.type || "Activity"}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                    <div className="text-slate-500">Date</div>
+                    <div className="text-right text-slate-900">{date}</div>
+                    <div className="text-slate-500">Type</div>
+                    <div className="text-right text-slate-900">{type}</div>
+                    <div className="text-slate-500">Distance</div>
+                    <div className="text-right text-slate-900">{distance}</div>
+                    <div className="text-slate-500">Time</div>
+                    <div className="text-right text-slate-900">{time}</div>
+                    <div className="text-slate-500">Load</div>
+                    <div className="text-right text-slate-900">{load}</div>
+                  </div>
                 </a>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         </section>
       )}
 
