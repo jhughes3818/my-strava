@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import crypto from "crypto";
 
 /**
  * Strava webhook verification (one-time, when you create the subscription):
@@ -164,32 +165,26 @@ async function fetchAndStoreActivity(userId: string, activityId: string) {
 }
 
 // --- utils ---
-async function verifyStravaSignature(
+function verifyStravaSignature(
   body: string,
   signature: string,
   clientSecret: string
 ) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(clientSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"]
-  );
-  const sigBytes = hexToBytes(signature);
-  const valid = await crypto.subtle.verify(
-    "HMAC",
-    key,
-    sigBytes,
-    enc.encode(body)
-  );
-  return valid;
-}
+  const expected = crypto
+    .createHmac("sha256", clientSecret)
+    .update(body)
+    .digest("hex");
 
-function hexToBytes(hex: string) {
-  const arr = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < arr.length; i++)
-    arr[i] = parseInt(hex.substr(i * 2, 2), 16);
-  return arr;
+  const sig = signature.startsWith("sha256=")
+    ? signature.slice("sha256=".length)
+    : signature;
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, "hex"),
+      Buffer.from(sig, "hex")
+    );
+  } catch {
+    return false;
+  }
 }
