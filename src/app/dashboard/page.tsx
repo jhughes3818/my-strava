@@ -10,6 +10,7 @@ import WeeklyStats from "@/components/WeeklyStats";
 import BackfillButton from "@/components/BackfillButton";
 import TrainingCharts from "@/components/TrainingCharts";
 import Last7Days from "@/components/Last7Days";
+import AutoSyncPill from "@/components/AutoSyncPill";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -34,28 +35,15 @@ export default async function DashboardPage() {
     },
   });
 
-  async function autoSyncIfNeeded(userId: string) {
-    // Fire-and-forget incremental sync; don’t block page
-    fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/strava/incremental`, {
-      method: "POST",
-      // In dev, base URL may be empty -> relative works from client, not server.
-      // For server in dev: fall back to relative via Next's internal fetch by omitting base.
-      // Here we play safe with try/catch:
-    }).catch(() => {});
-  }
-
   const hasStrava = user?.accounts?.some((a) => a.provider === "strava");
-
-  if (hasStrava) {
-    await autoSyncIfNeeded(user!.id);
-  }
 
   const syncState = await db.syncState.findUnique({
     where: { userId: user!.id },
   });
 
   const recent = await db.activity.findMany({
-    where: { userId: user!.id, has_streams: true },
+    where: { userId: user!.id },
+    // include activities even if detail/streams haven't been fetched yet
     orderBy: { start_date: "desc" },
     take: 10,
     select: { id: true, name: true, type: true, start_date: true },
@@ -95,10 +83,7 @@ export default async function DashboardPage() {
                   <BackfillButton />
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Activities Up To Date
-                </div>
+                <AutoSyncPill />
               )}
             </div>
           </div>
