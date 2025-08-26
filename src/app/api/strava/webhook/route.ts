@@ -1,13 +1,17 @@
-import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
+// app/api/strava/webhook/route.ts
+import type { NextRequest } from "next/server";
 import crypto from "crypto";
+import { db } from "@/lib/db";
 
+// Ensure Node runtime (not Edge)
 export const runtime = "nodejs";
+// Avoid caching weirdness
+export const dynamic = "force-dynamic";
 
 /**
- * Strava webhook verification (one-time, when you create the subscription):
- * Strava calls GET ?hub.mode=subscribe&hub.challenge=...&hub.verify_token=...
- * You must echo back {"hub.challenge": "..."} when verify_token matches.
+ * GET: Strava webhook verification
+ * Strava calls: ?hub.mode=subscribe&hub.challenge=...&hub.verify_token=...
+ * You must echo {"hub.challenge": "..."} when the verify token matches.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,6 +21,7 @@ export async function GET(req: NextRequest) {
 
   if (
     mode === "subscribe" &&
+    token &&
     token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
   ) {
     return new Response(JSON.stringify({ "hub.challenge": challenge }), {
@@ -29,39 +34,80 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Event delivery: Strava POSTs JSON and includes X-Strava-Signature = HMAC-SHA256(body, CLIENT_SECRET)
- * We validate the signature, then react to aspect_type (create/update/delete).
+ * POST: Strava event delivery
+ * Header: X-Strava-Signature: sha256=<hex> (HMAC-SHA256 over the raw request body using your APP CLIENT SECRET)
  */
-
-// --- POST (event delivery) ---
 export async function POST(req: NextRequest) {
-  // 1) Read the raw body EXACTLY as Strava sent it
-  const rawText = await req.text();
-
-  // 2) Grab signature header (Strava sends: X-Strava-Signature: sha256=<hex>)
-  const header = req.headers.get("x-strava-signature") ?? "";
-
-  // 3) Verify using your APP CLIENT SECRET
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
   if (!clientSecret) {
-    console.error("Missing STRAVA_CLIENT_SECRET env var");
-    // Return 200 so Strava doesn't retry forever, but surface the error server-side
+    console.error("[strava] Missing STRAVA_CLIENT_SECRET");
+    // Return 200 to avoid endless retries from Strava; you can alert internally instead.
     return new Response("missing secret", { status: 200 });
   }
 
-  const ok = verifyStravaSignature(rawText, header, clientSecret);
-  if (!ok) {
-    // 401 will make Strava retry; if you’d rather avoid retries, return 200 and log instead.
+  // Read exact raw bytes of the request body (no JSON parsing yet)
+  const raw = new Uint8Array(await req.arrayBuffer());
+
+  // Signature header (case-insensitive)
+  const header = req.headers.get("x-strava-signature") || "";
+  const provided = header.startsWith("sha256=") ? header.slice(7) : header;
+
+  // ---- Optional debug: only responds if you send X-Debug-Sig: 1 ----
+  if (req.headers.get("x-debug-sig") === "1") {
+    const expectedHex = crypto
+      .createHmac("sha256", clientSecret)
+      .update(raw)
+      .digest("hex");
+    return new Response(
+      JSON.stringify({
+        envSeen: true,
+        clientSecretLen: clientSecret.length,
+        runtime: (globalThis as any).EdgeRuntime ? "edge" : "node",
+        haveHeader: !!header,
+        providedLen: provided.length,
+        expectedLen: expectedHex.length,
+        provided,
+        expectedHex,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  // ------------------------------------------------------------------
+
+  // Compute expected signature over the raw bytes
+  const expectedHex = crypto
+    .createHmac("sha256", clientSecret)
+    .update(raw)
+    .digest("hex");
+
+  // Constant-time compare
+  let valid = false;
+  try {
+    const a = Buffer.from(expectedHex, "hex");
+    const b = Buffer.from(provided, "hex");
+    valid = a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    valid = false;
+  }
+
+  if (!valid) {
+    console.error("[strava] Bad signature", {
+      haveHeader: !!header,
+      providedLen: provided.length,
+      expectedLen: expectedHex.length,
+    });
     return new Response("Bad signature", { status: 401 });
   }
 
   // Safe to parse now
-  const evt = JSON.parse(rawText) as {
+  const evt = JSON.parse(Buffer.from(raw).toString("utf8")) as {
     object_type: "activity" | "athlete";
     object_id: number;
     aspect_type: "create" | "update" | "delete";
-    owner_id: number;
+    owner_id: number; // athlete id
     updates?: Record<string, unknown>;
+    subscription_id?: number;
+    event_time?: number;
   };
 
   // Ignore non-activity events
@@ -80,6 +126,7 @@ export async function POST(req: NextRequest) {
         if (acct) await fetchAndStoreActivity(acct.userId, activityId);
         break;
       }
+
       case "update": {
         const becamePrivate =
           evt.updates && (evt.updates as any).private === "true";
@@ -96,46 +143,21 @@ export async function POST(req: NextRequest) {
         }
         break;
       }
+
       case "delete": {
         await db.activity.delete({ where: { id: activityId } }).catch(() => {});
         break;
       }
     }
   } catch (e) {
-    console.error("Strava webhook error", e);
-    // Return 200 to prevent endless retries from Strava
+    console.error("[strava] Handler error", e);
+    // Still return 200 so Strava doesn't hammer you with retries.
   }
 
   return new Response("ok", { status: 200 });
 }
 
-// --- utils ---
-function verifyStravaSignature(
-  rawBodyText: string,
-  headerValue: string,
-  clientSecret: string
-) {
-  // Strava header is usually "sha256=<hex>", but we’ll accept raw hex too
-  const provided = headerValue.startsWith("sha256=")
-    ? headerValue.slice("sha256=".length)
-    : headerValue;
-
-  // Compute expected HMAC over the EXACT raw body (utf8)
-  const expectedHex = crypto
-    .createHmac("sha256", clientSecret)
-    .update(rawBodyText, "utf8")
-    .digest("hex");
-
-  // Constant-time compare
-  try {
-    const a = Buffer.from(expectedHex, "hex");
-    const b = Buffer.from(provided, "hex");
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
+/** Your existing sync function (unchanged) */
 async function fetchAndStoreActivity(userId: string, activityId: string) {
   const { ensureStravaAccessToken, getActivityDetail, getActivityStreams } =
     await import("@/lib/strava");
