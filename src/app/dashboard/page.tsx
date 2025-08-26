@@ -51,7 +51,8 @@ export default async function DashboardPage() {
   });
 
   const recent = await db.activity.findMany({
-    where: { userId: user!.id, has_streams: true },
+    where: { userId: user!.id },
+    // include activities even if detail/streams haven't been fetched yet
     orderBy: { start_date: "desc" },
     take: 10,
     select: { id: true, name: true, type: true, start_date: true },
