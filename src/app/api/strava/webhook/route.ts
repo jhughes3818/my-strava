@@ -31,16 +31,16 @@ export async function GET(req: NextRequest) {
  * We validate the signature, then react to aspect_type (create/update/delete).
  */
 export async function POST(req: NextRequest) {
-  const raw = await req.text();
-  const sig = req.headers.get("x-strava-signature"); // HMAC hex
-  const ok = await verifyStravaSignature(
+  const raw = Buffer.from(await req.arrayBuffer());
+  const sig = req.headers.get("x-strava-signature") ?? ""; // HMAC hex
+  const ok = verifyStravaSignature(
     raw,
-    sig ?? "",
+    sig,
     process.env.STRAVA_CLIENT_SECRET!
   );
   if (!ok) return new Response("Bad signature", { status: 401 });
 
-  const evt = JSON.parse(raw) as {
+  const evt = JSON.parse(raw.toString("utf8")) as {
     object_type: "activity" | "athlete";
     object_id: number;
     aspect_type: "create" | "update" | "delete";
@@ -166,7 +166,7 @@ async function fetchAndStoreActivity(userId: string, activityId: string) {
 
 // --- utils ---
 function verifyStravaSignature(
-  body: string,
+  body: Buffer,
   signature: string,
   clientSecret: string
 ) {
