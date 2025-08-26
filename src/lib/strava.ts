@@ -129,7 +129,7 @@ export async function getActivityDetail(
 export async function getActivityStreams(
   activityId: string,
   accessToken: string
-) {
+): Promise<Record<string, { data: any[] }> | null> {
   const keys = [
     "time",
     "heartrate",
@@ -146,6 +146,10 @@ export async function getActivityStreams(
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });
+  if (r.status === 404) {
+    // Streams may not be ready or activity may lack them.
+    return null;
+  }
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`Strava streams ${activityId} failed: ${r.status} ${t}`);

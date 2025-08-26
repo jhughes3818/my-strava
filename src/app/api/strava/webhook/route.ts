@@ -142,6 +142,7 @@ async function fetchAndStoreActivity(userId: string, activityId: string) {
 
   try {
     const s = await getActivityStreams(activityId, token);
+    if (!s) return;
     await db.activityStream.upsert({
       where: { activityId },
       create: {

@@ -69,6 +69,7 @@ export async function GET() {
     // 2) Streams
     try {
       const s = await getActivityStreams(id, accessToken);
+      if (!s) continue;
 
       await db.activityStream.upsert({
         where: { activityId: id },
