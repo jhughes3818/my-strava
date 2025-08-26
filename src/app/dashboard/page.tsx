@@ -135,17 +135,21 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold tracking-tight text-black">
             Recent activities
           </h2>
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="mt-4 space-y-2">
             {recent.map((a) => (
               <li key={a.id}>
                 <a
                   href={`/activities/${a.id}`}
-                  className="text-orange-600 hover:underline"
+                  className="block rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:bg-slate-50"
                 >
-                  {a.name || a.type || "Activity"}
-                  {a.start_date
-                    ? ` — ${new Date(a.start_date).toLocaleDateString()}`
-                    : ""}
+                  <div className="truncate text-sm font-medium text-slate-900">
+                    {a.name || a.type || "Activity"}
+                  </div>
+                  {a.start_date && (
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {new Date(a.start_date).toLocaleDateString()}
+                    </div>
+                  )}
                 </a>
               </li>
             ))}
