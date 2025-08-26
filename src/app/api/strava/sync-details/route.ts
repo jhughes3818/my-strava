@@ -31,7 +31,7 @@ export async function GET() {
     },
     orderBy: { start_date: "desc" },
     take: BATCH,
-    select: { id: true },
+    select: { id: true, raw_detail: true, has_streams: true },
   });
 
   if (targets.length === 0) {
@@ -41,68 +41,72 @@ export async function GET() {
   let detailed = 0,
     streamed = 0;
 
-  for (const { id } of targets) {
-    // 1) Detail
-    try {
-      const d = await getActivityDetail(id, accessToken);
+  for (const { id, raw_detail, has_streams } of targets) {
+    // 1) Detail (only if missing)
+    if (raw_detail === null) {
+      try {
+        const d = await getActivityDetail(id, accessToken);
 
-      await db.activity.update({
-        where: { id },
-        data: {
-          raw_detail: d as any,
-          avg_hr: d.average_heartrate ?? null,
-          max_hr: d.max_heartrate ?? null,
-          avg_speed: d.average_speed ?? null,
-          avg_cadence: d.average_cadence ?? null,
-          avg_watts: d.average_watts ?? null,
-          calories: d.calories ?? null,
-          device_name: d.device_name ?? null,
-          map_polyline: d.map?.summary_polyline ?? null,
-        },
-      });
-      detailed++;
-    } catch (e) {
-      // swallow single-activity errors to continue batch
-      console.error("detail error", id, e);
+        await db.activity.update({
+          where: { id },
+          data: {
+            raw_detail: d as any,
+            avg_hr: d.average_heartrate ?? null,
+            max_hr: d.max_heartrate ?? null,
+            avg_speed: d.average_speed ?? null,
+            avg_cadence: d.average_cadence ?? null,
+            avg_watts: d.average_watts ?? null,
+            calories: d.calories ?? null,
+            device_name: d.device_name ?? null,
+            map_polyline: d.map?.summary_polyline ?? null,
+          },
+        });
+        detailed++;
+      } catch (e) {
+        // swallow single-activity errors to continue batch
+        console.error("detail error", id, e);
+      }
     }
 
-    // 2) Streams
-    try {
-      const s = await getActivityStreams(id, accessToken);
+    // 2) Streams (only if missing)
+    if (!has_streams) {
+      try {
+        const s = await getActivityStreams(id, accessToken);
 
-      await db.activityStream.upsert({
-        where: { activityId: id },
-        create: {
-          activityId: id,
-          time: s.time?.data ?? null,
-          heartrate: s.heartrate?.data ?? null,
-          velocity_smooth: s.velocity_smooth?.data ?? null,
-          altitude: s.altitude?.data ?? null,
-          cadence: s.cadence?.data ?? null,
-          watts: s.watts?.data ?? null,
-          grade_smooth: s.grade_smooth?.data ?? null,
-          latlng: s.latlng?.data ?? null,
-        },
-        update: {
-          time: s.time?.data ?? null,
-          heartrate: s.heartrate?.data ?? null,
-          velocity_smooth: s.velocity_smooth?.data ?? null,
-          altitude: s.altitude?.data ?? null,
-          cadence: s.cadence?.data ?? null,
-          watts: s.watts?.data ?? null,
-          grade_smooth: s.grade_smooth?.data ?? null,
-          latlng: s.latlng?.data ?? null,
-        },
-      });
+        await db.activityStream.upsert({
+          where: { activityId: id },
+          create: {
+            activityId: id,
+            time: s.time?.data ?? null,
+            heartrate: s.heartrate?.data ?? null,
+            velocity_smooth: s.velocity_smooth?.data ?? null,
+            altitude: s.altitude?.data ?? null,
+            cadence: s.cadence?.data ?? null,
+            watts: s.watts?.data ?? null,
+            grade_smooth: s.grade_smooth?.data ?? null,
+            latlng: s.latlng?.data ?? null,
+          },
+          update: {
+            time: s.time?.data ?? null,
+            heartrate: s.heartrate?.data ?? null,
+            velocity_smooth: s.velocity_smooth?.data ?? null,
+            altitude: s.altitude?.data ?? null,
+            cadence: s.cadence?.data ?? null,
+            watts: s.watts?.data ?? null,
+            grade_smooth: s.grade_smooth?.data ?? null,
+            latlng: s.latlng?.data ?? null,
+          },
+        });
 
-      await db.activity.update({
-        where: { id },
-        data: { has_streams: true },
-      });
+        await db.activity.update({
+          where: { id },
+          data: { has_streams: true },
+        });
 
-      streamed++;
-    } catch (e) {
-      console.error("streams error", id, e);
+        streamed++;
+      } catch (e) {
+        console.error("streams error", id, e);
+      }
     }
   }
 
