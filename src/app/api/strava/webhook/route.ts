@@ -3,16 +3,10 @@ import type { NextRequest } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 
-// Ensure Node runtime (not Edge)
 export const runtime = "nodejs";
-// Avoid caching weirdness
 export const dynamic = "force-dynamic";
 
-/**
- * GET: Strava webhook verification
- * Strava calls: ?hub.mode=subscribe&hub.challenge=...&hub.verify_token=...
- * You must echo {"hub.challenge": "..."} when the verify token matches.
- */
+/** GET: subscription validation */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
@@ -21,7 +15,6 @@ export async function GET(req: NextRequest) {
 
   if (
     mode === "subscribe" &&
-    token &&
     token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
   ) {
     return new Response(JSON.stringify({ "hub.challenge": challenge }), {
@@ -29,90 +22,57 @@ export async function GET(req: NextRequest) {
       status: 200,
     });
   }
-
   return new Response("Forbidden", { status: 403 });
 }
 
-/**
- * POST: Strava event delivery
- * Header: X-Strava-Signature: sha256=<hex> (HMAC-SHA256 over the raw request body using your APP CLIENT SECRET)
- */
+/** POST: event delivery (no HMAC required by Strava) */
 export async function POST(req: NextRequest) {
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  if (!clientSecret) {
-    console.error("[strava] Missing STRAVA_CLIENT_SECRET");
-    // Return 200 to avoid endless retries from Strava; you can alert internally instead.
-    return new Response("missing secret", { status: 200 });
-  }
-
-  // Read exact raw bytes of the request body (no JSON parsing yet)
+  // Read raw bytes once
   const raw = new Uint8Array(await req.arrayBuffer());
 
-  // Signature header (case-insensitive)
+  // OPTIONAL: verify X-Strava-Signature if *present* (e.g., for your own test calls)
   const header = req.headers.get("x-strava-signature") || "";
   const provided = header.startsWith("sha256=") ? header.slice(7) : header;
-
-  // ---- Optional debug: only responds if you send X-Debug-Sig: 1 ----
-  if (req.headers.get("x-debug-sig") === "1") {
-    const expectedHex = crypto
-      .createHmac("sha256", clientSecret)
+  if (provided) {
+    const secret = process.env.STRAVA_CLIENT_SECRET || "";
+    const expected = crypto
+      .createHmac("sha256", secret)
       .update(raw)
       .digest("hex");
-    return new Response(
-      JSON.stringify({
-        envSeen: true,
-        clientSecretLen: clientSecret.length,
-        runtime: (globalThis as any).EdgeRuntime ? "edge" : "node",
-        haveHeader: !!header,
-        providedLen: provided.length,
-        expectedLen: expectedHex.length,
-        provided,
-        expectedHex,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  }
-  // ------------------------------------------------------------------
-
-  // Compute expected signature over the raw bytes
-  const expectedHex = crypto
-    .createHmac("sha256", clientSecret)
-    .update(raw)
-    .digest("hex");
-
-  // Constant-time compare
-  let valid = false;
-  try {
-    const a = Buffer.from(expectedHex, "hex");
-    const b = Buffer.from(provided, "hex");
-    valid = a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch {
-    valid = false;
+    try {
+      const a = Buffer.from(expected, "hex");
+      const b = Buffer.from(provided, "hex");
+      const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+      if (!ok) {
+        // Don’t block Strava—just log mismatch and continue
+        console.warn("[strava] optional HMAC mismatch (ignoring)");
+      }
+    } catch {
+      console.warn("[strava] optional HMAC compare failed (ignoring)");
+    }
   }
 
-  if (!valid) {
-    console.error("[strava] Bad signature", {
-      haveHeader: !!header,
-      providedLen: provided.length,
-      expectedLen: expectedHex.length,
-    });
-    return new Response("Bad signature", { status: 401 });
-  }
-
-  // Safe to parse now
-  const evt = JSON.parse(Buffer.from(raw).toString("utf8")) as {
+  // Parse now
+  let evt: {
     object_type: "activity" | "athlete";
     object_id: number;
     aspect_type: "create" | "update" | "delete";
-    owner_id: number; // athlete id
+    owner_id: number;
     updates?: Record<string, unknown>;
     subscription_id?: number;
     event_time?: number;
   };
+  try {
+    evt = JSON.parse(Buffer.from(raw).toString("utf8"));
+  } catch (e) {
+    console.error("[strava] bad JSON", e);
+    // Still 200 so Strava doesn't hammer retries
+    return new Response("ok", { status: 200 });
+  }
 
-  // Ignore non-activity events
+  // Only handle activities
   if (evt.object_type !== "activity")
-    return new Response("ignored", { status: 200 });
+    return new Response("ok", { status: 200 });
 
   const activityId = String(evt.object_id);
 
@@ -126,7 +86,6 @@ export async function POST(req: NextRequest) {
         if (acct) await fetchAndStoreActivity(acct.userId, activityId);
         break;
       }
-
       case "update": {
         const becamePrivate =
           evt.updates && (evt.updates as any).private === "true";
@@ -143,21 +102,20 @@ export async function POST(req: NextRequest) {
         }
         break;
       }
-
       case "delete": {
         await db.activity.delete({ where: { id: activityId } }).catch(() => {});
         break;
       }
     }
   } catch (e) {
-    console.error("[strava] Handler error", e);
-    // Still return 200 so Strava doesn't hammer you with retries.
+    console.error("[strava] handler error", e);
+    // swallow to avoid retries
   }
 
   return new Response("ok", { status: 200 });
 }
 
-/** Your existing sync function (unchanged) */
+// unchanged
 async function fetchAndStoreActivity(userId: string, activityId: string) {
   const { ensureStravaAccessToken, getActivityDetail, getActivityStreams } =
     await import("@/lib/strava");
