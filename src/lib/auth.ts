@@ -58,6 +58,14 @@ export const authOptions: NextAuthOptions = {
           },
           data: { athlete_id: account.providerAccountId },
         });
+
+        // Kick off initial backfill when Strava is first linked
+        if (account.userId) {
+          const { backfillAllActivities } = await import("@/lib/strava-sync");
+          backfillAllActivities(account.userId).catch((e) =>
+            console.error("backfill error", e)
+          );
+        }
       }
     },
   },

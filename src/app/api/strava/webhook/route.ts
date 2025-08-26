@@ -56,36 +56,18 @@ export async function POST(req: NextRequest) {
   try {
     switch (evt.aspect_type) {
       case "create": {
-        // Pull the single activity and upsert (idempotent)
-        const { ensureStravaAccessToken } = await import("@/lib/strava");
-        const { upsertActivity } = await import("@/lib/strava-sync");
-
-        // Find the user by athlete_id mapping in Account
         const acct = await db.account.findFirst({
           where: { provider: "strava", athlete_id: String(evt.owner_id) },
           select: { userId: true },
         });
-        if (!acct) break;
-
-        // Ensure we have a valid token then fetch detail and/or list page item
-        const token = await ensureStravaAccessToken(acct.userId);
-        const detail = await fetch(
-          `https://www.strava.com/api/v3/activities/${activityId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          }
-        );
-        if (detail.ok) {
-          const a = await detail.json();
-          await upsertActivity(acct.userId, a);
+        if (acct) {
+          await fetchAndStoreActivity(acct.userId, activityId);
         }
         break;
       }
 
       case "update": {
-        // If the activity was made private or otherwise unauthorized, you may want to remove it locally.
-        // Strava sends updates like { "title": "...", "type": "...", "private": "true" }
+        // If the activity was made private or otherwise unauthorized, remove it.
         const becamePrivate =
           evt.updates && (evt.updates as any).private === "true";
         if (becamePrivate) {
@@ -93,26 +75,12 @@ export async function POST(req: NextRequest) {
             .delete({ where: { id: activityId } })
             .catch(() => {});
         } else {
-          // For other updates, you could re-fetch detail and update the row
           const acct = await db.account.findFirst({
             where: { provider: "strava", athlete_id: String(evt.owner_id) },
             select: { userId: true },
           });
           if (acct) {
-            const { ensureStravaAccessToken } = await import("@/lib/strava");
-            const token = await ensureStravaAccessToken(acct.userId);
-            const r = await fetch(
-              `https://www.strava.com/api/v3/activities/${activityId}`,
-              {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: "no-store",
-              }
-            );
-            if (r.ok) {
-              const a = await r.json();
-              const { upsertActivity } = await import("@/lib/strava-sync");
-              await upsertActivity(acct.userId, a);
-            }
+            await fetchAndStoreActivity(acct.userId, activityId);
           }
         }
         break;
@@ -130,6 +98,69 @@ export async function POST(req: NextRequest) {
   }
 
   return new Response("ok", { status: 200 });
+}
+
+async function fetchAndStoreActivity(userId: string, activityId: string) {
+  const {
+    ensureStravaAccessToken,
+    getActivityDetail,
+    getActivityStreams,
+  } = await import("@/lib/strava");
+  const { upsertActivity } = await import("@/lib/strava-sync");
+
+  const token = await ensureStravaAccessToken(userId);
+  const d = await getActivityDetail(activityId, token);
+  await upsertActivity(userId, d);
+
+  await db.activity.update({
+    where: { id: activityId },
+    data: {
+      raw_detail: d as any,
+      avg_hr: d.average_heartrate ?? null,
+      max_hr: d.max_heartrate ?? null,
+      avg_speed: d.average_speed ?? null,
+      avg_cadence: d.average_cadence ?? null,
+      avg_watts: d.average_watts ?? null,
+      calories: d.calories ?? null,
+      device_name: d.device_name ?? null,
+      map_polyline: d.map?.summary_polyline ?? null,
+    },
+  });
+
+  try {
+    const s = await getActivityStreams(activityId, token);
+    await db.activityStream.upsert({
+      where: { activityId },
+      create: {
+        activityId,
+        time: s.time?.data ?? null,
+        heartrate: s.heartrate?.data ?? null,
+        velocity_smooth: s.velocity_smooth?.data ?? null,
+        altitude: s.altitude?.data ?? null,
+        cadence: s.cadence?.data ?? null,
+        watts: s.watts?.data ?? null,
+        grade_smooth: s.grade_smooth?.data ?? null,
+        latlng: s.latlng?.data ?? null,
+      },
+      update: {
+        time: s.time?.data ?? null,
+        heartrate: s.heartrate?.data ?? null,
+        velocity_smooth: s.velocity_smooth?.data ?? null,
+        altitude: s.altitude?.data ?? null,
+        cadence: s.cadence?.data ?? null,
+        watts: s.watts?.data ?? null,
+        grade_smooth: s.grade_smooth?.data ?? null,
+        latlng: s.latlng?.data ?? null,
+      },
+    });
+
+    await db.activity.update({
+      where: { id: activityId },
+      data: { has_streams: true },
+    });
+  } catch (e) {
+    console.error("stream error", activityId, e);
+  }
 }
 
 // --- utils ---
