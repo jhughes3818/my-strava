@@ -1,5 +1,6 @@
 // src/app/dashboard/page.tsx
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -146,9 +147,17 @@ export default async function DashboardPage() {
 
       {hasStrava && recent.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold tracking-tight text-black">
-            Recent activities
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight text-black">
+              Recent activities
+            </h2>
+            <Link
+              href="/activities"
+              className="text-sm text-sky-600 hover:underline"
+            >
+              All activities
+            </Link>
+          </div>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recent.map((a) => {
               const date = a.start_date
