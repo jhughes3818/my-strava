@@ -9,6 +9,7 @@ import SignOutButton from "@/components/SignOutButton";
 import TrainingStatus from "@/components/TrainingStatus";
 import WeeklyStats from "@/components/WeeklyStats";
 import BackfillButton from "@/components/BackfillButton";
+import RefreshButton from "@/components/RefreshButton";
 import TrainingCharts from "@/components/TrainingCharts";
 import Last7Days from "@/components/Last7Days";
 
@@ -99,16 +100,9 @@ export default async function DashboardPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {/* client components */}
-
-              {/* <SyncStravaButton />
-
-              <SyncStravaDetailsButton /> */}
-
+              <RefreshButton />
               {hasStrava && !syncState?.backfillDone ? (
-                <div className="mt-3">
-                  <BackfillButton />
-                </div>
+                <BackfillButton />
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-emerald-700 ring-1 ring-inset ring-emerald-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
