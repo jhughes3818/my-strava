@@ -2,14 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import WeeklyVolumeChart from "./WeeklyVolumeChart";
+import RollingVolumeChart from "./RollingVolumeChart";
 import FitnessFreshnessChart from "./FitnessFreshnessChart";
 
 const PRESETS = [
-  { label: "1M", days: 30, weeks: 4 },
-  { label: "3M", days: 90, weeks: 13 },
-  { label: "6M", days: 180, weeks: 26 },
-  { label: "12M", days: 365, weeks: 52 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "12M", days: 365 },
 ];
 
 export default function TrainingCharts() {
@@ -42,7 +42,7 @@ export default function TrainingCharts() {
 
       {/* Both charts read from the same selection */}
       <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
-        <WeeklyVolumeChart weeks={range.weeks} />
+        <RollingVolumeChart days={range.days} />
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
