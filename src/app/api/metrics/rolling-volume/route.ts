@@ -20,7 +20,26 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const daysParam = url.searchParams.get("days");
   const windowParam = url.searchParams.get("window");
-  const days = Math.max(1, Math.min(365, Number(daysParam) || 90));
+  let days: number;
+  if (daysParam === "max") {
+    const earliest = await db.activity.findFirst({
+      where: { userId },
+      orderBy: { start_date: "asc" },
+      select: { start_date: true },
+    });
+    if (earliest?.start_date) {
+      const diff = Math.floor(
+        (Date.now() - earliest.start_date.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      days = Math.max(diff, 1);
+    } else {
+      days = 90;
+    }
+  } else {
+    const parsed = Number(daysParam);
+    days = Math.max(1, Math.min(730, isFinite(parsed) && parsed > 0 ? parsed : 90));
+  }
+
   let windowSize = Number(windowParam);
   windowSize = windowSize === 30 ? 30 : 7; // default 7
 

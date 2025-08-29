@@ -5,11 +5,13 @@ import { useState } from "react";
 import RollingVolumeChart from "./RollingVolumeChart";
 import FitnessFreshnessChart from "./FitnessFreshnessChart";
 
-const PRESETS = [
+const PRESETS: { label: string; days: number | "max" }[] = [
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
   { label: "6M", days: 180 },
   { label: "12M", days: 365 },
+  { label: "24M", days: 730 },
+  { label: "Max", days: "max" },
 ];
 
 export default function TrainingCharts() {
@@ -46,7 +48,9 @@ export default function TrainingCharts() {
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
-        <FitnessFreshnessChart days={range.days} />
+        <FitnessFreshnessChart
+          days={range.days === "max" ? undefined : range.days}
+        />
       </div>
     </section>
   );
