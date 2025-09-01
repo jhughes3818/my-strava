@@ -15,7 +15,11 @@ import {
 
 type Row = { day: string; km: number; hours: number };
 
-export default function RollingVolumeChart({ days = 90 }: { days?: number }) {
+export default function RollingVolumeChart({
+  days = 90,
+}: {
+  days?: number | "max";
+}) {
   const [data, setData] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
