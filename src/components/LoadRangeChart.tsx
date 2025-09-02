@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -82,7 +82,7 @@ export default function LoadRangeChart({
       </div>
       <div className="h-80 w-full">
         <ResponsiveContainer>
-          <LineChart data={visibleData}>
+          <ComposedChart data={visibleData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="day"
@@ -107,6 +107,8 @@ export default function LoadRangeChart({
               stackId="range"
               stroke="none"
               fill="none"
+              legendType="none"
+              activeDot={false}
             />
             <Area
               type="monotone"
@@ -124,7 +126,7 @@ export default function LoadRangeChart({
               strokeWidth={2}
               dot={false}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>
