@@ -4,6 +4,7 @@
 import { useState } from "react";
 import RollingVolumeChart from "./RollingVolumeChart";
 import FitnessFreshnessChart from "./FitnessFreshnessChart";
+import LoadRangeChart from "./LoadRangeChart";
 
 const PRESETS: { label: string; days: number | "max" }[] = [
   { label: "1M", days: 30 },
@@ -51,6 +52,10 @@ export default function TrainingCharts() {
         <FitnessFreshnessChart
           days={range.days === "max" ? undefined : range.days}
         />
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+        <LoadRangeChart days={range.days} />
       </div>
     </section>
   );
